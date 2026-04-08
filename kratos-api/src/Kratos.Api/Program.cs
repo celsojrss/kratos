@@ -10,6 +10,9 @@ using StackExchange.Redis;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using HealthChecks.UI.Client;
 using RabbitMQ.Client;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Serilog;
+using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,15 +54,33 @@ builder.Services.AddStackExchangeRedisCache(options =>
 });
 
 builder.Services.AddHealthChecks()
-    .AddMongoDb(name: "mongodb", tags: ["db", "data"])
-    .AddRedis($"{redisUrl},abortConnect=false", name: "redis")
-    .AddRabbitMQ(name: "rabbitmq");
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+    
+    .AddMongoDb(name: "mongodb", tags: ["ready", "db"])
+    .AddRedis($"{redisUrl},abortConnect=false", name: "redis", tags: ["ready", "cache"])
+    .AddRabbitMQ(name: "rabbitmq", tags: ["ready", "messaging"]);
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new RenderedCompactJsonFormatter())
+    .WriteTo.Seq("http://localhost:12345")
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "kratos-api")
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 var app = builder.Build();
 
-app.MapHealthChecks("/health", new HealthCheckOptions
+app.UseSerilogRequestLogging();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    Predicate = _ => true,
+    Predicate = check => check.Tags.Contains("live"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 

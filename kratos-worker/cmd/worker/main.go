@@ -19,25 +19,28 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	mongoURL  := getEnv("MONGO_URL", "mongodb://root:example@localhost:27017")
-	redisURL  := getEnv("REDIS_URL", "localhost:6379")
+	logger.Info("⚔️ KRATOS: Carregando configurações de ambiente...")
+
+	mongoURL := getEnv("MONGO_URL", "mongodb://root:example@localhost:27017")
+	redisURL := getEnv("REDIS_URL", "localhost:6379")
 	rabbitURL := getEnv("RABBIT_URL", "amqp://guest:guest@localhost:5672")
 
 	redisProv := redis.NewIdempotencyProvider(redisURL)
+
 	mongoRepo := mongodb.NewUserRepository(mongoURL, "kratos_db", "users", redisProv.GetClient())
 	
 	userUC := usecase.NewUserUseCase(mongoRepo, redisProv)
+	
 	consumer := rabbitmq.NewConsumer(rabbitURL, userUC)
 
-	go func() {
-		logger.Info("⚔️ KRATOS: Iniciando processamento de alta performance", "workers", 50)
-		consumer.Start(ctx, 50)
-	}()
+	logger.Info("⚔️ KRATOS: Worker pronto para processar", "workers", 50)
 
-	<-ctx.Done()
+	consumer.Start(ctx, 50)
+
+	logger.Info("⚔️ KRATOS: Desligamento detectado. Finalizando workers...")
 	
-	logger.Info("⚔️ KRATOS: Desligando... finalizando workers pendentes.")
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
+	logger.Info("⚔️ KRATOS: Sistema desligado com sucesso.")
 }
 
 func getEnv(key, fallback string) string {

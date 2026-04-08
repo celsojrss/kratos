@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 	"kratos/internal/domain"
-	"log"
+	"kratos/pkg/logger"
 )
 
 type UserUseCase struct {
@@ -21,10 +21,13 @@ func (u *UserUseCase) Execute(ctx context.Context, user domain.User, msgID strin
 	if err != nil {
 		return err
 	}
+
 	if !isNew {
-		log.Printf("[Idempotency] Mensagem %s já processada. Pulando...", msgID)
-		return nil
-	}
+    	logger.Warn("[Idempotency] Mensagem duplicada ignorada", 
+        "eventId", msgID, 
+        "cpf", user.CPF)
+    return nil
+}
 
 	return u.repo.Save(ctx, &user)
 }

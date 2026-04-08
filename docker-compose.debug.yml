@@ -1,5 +1,35 @@
 services:
   
+  kratos-logs:
+    image: datalust/seq:latest
+    container_name: kratos_seq
+    ports:
+      - "5341:80"
+      - "12345:5341"
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    volumes:
+      - ./seq-data:/data
+    networks:
+      - kratos-net
+
+  kratos-monitor:
+    image: xabarilcoding/healthchecksui:latest
+    container_name: kratos_monitor
+    ports:
+      - "5008:80"
+    environment:
+      # Formato de variáveis de ambiente para o HealthChecksUI
+      - HealthChecksUI__HealthChecks__0__Name=Kratos - Liveness
+      - HealthChecksUI__HealthChecks__0__Uri=http://host.docker.internal:5007/health/live
+      - HealthChecksUI__HealthChecks__1__Name=Kratos - Readiness
+      - HealthChecksUI__HealthChecks__1__Uri=http://host.docker.internal:5007/health/ready
+      # Opcional: Define o intervalo de atualização (em segundos)
+      - HealthChecksUI__EvaluationTimeInSeconds=10
+    networks:
+      - kratos-net
+
   kratos-worker:
     build: ./kratos-worker
     container_name: kratos_worker

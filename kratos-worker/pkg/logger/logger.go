@@ -18,6 +18,10 @@ func Info(msg string, args ...any) {
 	Log.Info(msg, args...)
 }
 
+func Warn(msg string, args ...any) {
+	Log.Warn(msg, args...)
+}
+
 func Error(msg string, err error, args ...any) {
     Log.Error(msg, append([]any{"error", err}, args...)...)
 }

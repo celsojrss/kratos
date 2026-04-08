@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Kratos.Api.Domain.DTOs;
 using Kratos.Api.Domain.Entities;
 using Polly;
 using RabbitMQ.Client;
@@ -18,11 +19,25 @@ public class RabbitMqProducer
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
     }
 
-    public async Task PublishAsync(User user)
+    public async Task PublishAsync(User user, string? correlationId = null)
     {
         await _policy.ExecuteAsync(async () =>
         {
             using var channel = await _connection.CreateChannelAsync();
+
+            var eventMessage = new UserCreatedV1(
+                Metadata: new MetadataV1(
+                    EventId: Guid.NewGuid().ToString(),
+                    Version: "1.0",
+                    OccurredAt: DateTime.UtcNow.ToString("O"),
+                    CorrelationId: correlationId
+                ),
+                Payload: new PayloadV1(
+                    Cpf: user.CPF,
+                    Name: user.Name,
+                    Email: user.Email
+                )
+            );
 
             var arguments = new Dictionary<string, object?>
             {
@@ -32,12 +47,13 @@ public class RabbitMqProducer
 
             await channel.QueueDeclareAsync(_queueName, durable: true, exclusive: false, autoDelete: false, arguments: arguments);
 
-            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(user));
+            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(eventMessage));
             
             var properties = new BasicProperties
             {
                 MessageId = Guid.NewGuid().ToString(),
-                Persistent = true
+                Persistent = true,
+                CorrelationId = correlationId
             };
 
             await channel.BasicPublishAsync(

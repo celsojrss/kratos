@@ -163,11 +163,7 @@ npm run dev
 
 ## Roadmap Sugerido
 
-- Adicionar endpoint de health check dedicado (`/health`).
-- Padronizar logs estruturados entre API e worker.
 - Incluir testes automatizados (unitarios e integracao).
-- Versionar contrato de eventos (schema de mensagem).
 
-## Licenca
-
-Definir licenca do projeto (ex.: MIT) para distribuicao publica.
+## Licença
+Este projeto está sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.

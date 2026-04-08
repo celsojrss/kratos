@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UserCreated",
+  "description": "Evento disparado quando um novo usuário é cadastrado no sistema Kratos",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "format": "uuid" },
+        "version": { "type": "string", "const": "1.0" },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "correlationId": { "type": "string" }
+      },
+      "required": ["eventId", "version", "occurredAt"]
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "cpf": { "type": "string", "pattern": "^[0-9]{11}$" },
+        "name": { "type": "string", "minLength": 3 },
+        "email": { "type": "string", "format": "email" }
+      },
+      "required": ["cpf", "name"]
+    }
+  },
+  "required": ["metadata", "payload"]
+}
