@@ -1,6 +1,5 @@
 using Kratos.Api.Domain.Entities;
 using Kratos.Api.Domain.DTOs;
-using Kratos.Api.Infrastructure.Messaging;
 using Kratos.Api.Infrastructure.Persistence;
 using Kratos.Api.Infrastructure.Mapping;
 using MongoDB.Driver;
@@ -8,6 +7,9 @@ using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using AutoMapper;
 using StackExchange.Redis;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using HealthChecks.UI.Client;
+using RabbitMQ.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,7 +17,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("KratosPolicy", policy =>
     {
-        policy.AllowAnyOrigin() // Permite qualquer origem (ideal para dev)
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -23,6 +25,13 @@ builder.Services.AddCors(options =>
 
 var mongoUrl = Environment.GetEnvironmentVariable("MONGO_URL") ?? "mongodb://root:example@localhost:27017";
 var redisUrl = Environment.GetEnvironmentVariable("REDIS_URL") ?? "localhost:6379";
+var rabbitUrl = Environment.GetEnvironmentVariable("RABBIT_URL") ?? "amqp://guest:guest@localhost:5672";
+
+builder.Services.AddSingleton<IConnection>(sp =>
+{
+    var factory = new ConnectionFactory { Uri = new Uri(rabbitUrl) };
+    return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+});
 
 builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 builder.Services.AddSingleton<IMongoClient>(new MongoClient(mongoUrl));
@@ -41,7 +50,18 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.InstanceName = "Kratos:";
 });
 
+builder.Services.AddHealthChecks()
+    .AddMongoDb(name: "mongodb", tags: ["db", "data"])
+    .AddRedis($"{redisUrl},abortConnect=false", name: "redis")
+    .AddRabbitMQ(name: "rabbitmq");
+
 var app = builder.Build();
+
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
 
 app.UseCors("KratosPolicy");
 

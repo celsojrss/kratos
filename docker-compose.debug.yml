@@ -1,21 +1,5 @@
 services:
-  kratos-api:
-    build:
-      context: ./kratos-api/src/Kratos.Api
-      dockerfile: Dockerfile
-    container_name: kratos_api
-    ports:
-      - "5007:5007"
-    environment:
-      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672
-      - MONGO_URL=mongodb://root:example@mongodb:27017
-      - REDIS_URL=redis:6379
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - kratos-net
-
+  
   kratos-worker:
     build: ./kratos-worker
     container_name: kratos_worker
@@ -39,8 +23,6 @@ services:
     container_name: kratos_front
     ports:
       - "3000:80"
-    depends_on:
-      - kratos-api
     networks:
       - kratos-net
 

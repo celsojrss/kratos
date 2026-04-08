@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Kratos.Api.Domain.Entities;
@@ -9,6 +10,7 @@ public class User
     public string CPF { get; set; } = string.Empty;
 
     [BsonElement("first_name")]
+    [JsonPropertyName("first_name")]
     public string Name { get; set; } = string.Empty;
 
     [BsonElement("email")]
