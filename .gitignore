@@ -1,0 +1,13 @@
+.vscode/
+.vs/
+.idea/
+*.sln.ids
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+.docker/
+/data/
+.env
+.env.*
+*.log

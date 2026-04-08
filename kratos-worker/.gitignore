@@ -1,0 +1,6 @@
+kratos-worker
+main
+main.exe
+*.out
+*.test
+vendor/

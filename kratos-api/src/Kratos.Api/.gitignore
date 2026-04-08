@@ -1,0 +1,8 @@
+[Bb]in/
+[Oo]bj/
+*.exe
+*.dll
+*.pdb
+*.apphost.exe
+/publish/
+appsettings.Development.json
