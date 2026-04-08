@@ -47,3 +47,18 @@ func (r *MongoRepo) Save(ctx context.Context, user *domain.User) error {
 
 	return err
 }
+
+func (r *MongoRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+    var user domain.User
+    filter := map[string]interface{}{"email": email}
+    
+    err := r.collection.FindOne(ctx, filter).Decode(&user)
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            return nil, nil // Ou um erro de domínio "UserNotFound"
+        }
+        return nil, err
+    }
+    
+    return &user, nil
+}

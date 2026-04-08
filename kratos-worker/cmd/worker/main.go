@@ -23,9 +23,9 @@ func main() {
 	redisURL  := getEnv("REDIS_URL", "localhost:6379")
 	rabbitURL := getEnv("RABBIT_URL", "amqp://guest:guest@localhost:5672")
 
-	mongoRepo := mongodb.NewUserRepository(mongoURL, "kratos_db", "users")
 	redisProv := redis.NewIdempotencyProvider(redisURL)
-
+	mongoRepo := mongodb.NewUserRepository(mongoURL, "kratos_db", "users", redisProv.GetClient())
+	
 	userUC := usecase.NewUserUseCase(mongoRepo, redisProv)
 	consumer := rabbitmq.NewConsumer(rabbitURL, userUC)
 

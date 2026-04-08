@@ -88,20 +88,6 @@ Servicos:
 - MongoDB: `localhost:27017`
 - Redis: `localhost:6379`
 
-## Nota Importante de Porta (API)
-
-No estado atual do repositório:
-
-- Container da API escuta em `5007` (`ASPNETCORE_URLS=http://+:5007`)
-- `docker-compose.yml` expõe `5000:8080`
-
-Para operar corretamente, ajuste para:
-
-```yaml
-ports:
-  - "5007:5007"
-```
-
 ## Endpoints
 
 ### `POST /users`

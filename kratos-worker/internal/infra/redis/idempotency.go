@@ -25,3 +25,7 @@ func (r *RedisIdempotency) CheckAndSet(ctx context.Context, key string) (bool, e
 	}
 	return success, nil
 }
+
+func (r *RedisIdempotency) GetClient() *redis.Client {
+    return r.client
+}

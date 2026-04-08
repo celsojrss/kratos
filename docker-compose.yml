@@ -1,11 +1,11 @@
 services:
   kratos-api:
     build:
-      context: ./kratos-api
-      dockerfile: src/Kratos.Api/Dockerfile
+      context: ./kratos-api/src/Kratos.Api
+      dockerfile: Dockerfile
     container_name: kratos_api
     ports:
-      - "5000:8080"
+      - "5007:5007"
     environment:
       - RABBIT_URL=amqp://guest:guest@rabbitmq:5672
       - MONGO_URL=mongodb://root:example@mongodb:27017
