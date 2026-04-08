@@ -16,20 +16,20 @@ A arquitetura usa RabbitMQ para desacoplamento, MongoDB para persistencia e Redi
 
 ```mermaid
 flowchart LR
-    U[Usuario] --> F[Kratos Frontend\nReact + Vite + Nginx]
-    F -->|HTTP POST /users| A[Kratos API\n.NET 10 Minimal API]
-    F -->|HTTP GET /users\nGET /users/{cpf}| A
+    U["Usuario"] --> F["Kratos Frontend<br/>React + Vite + Nginx"]
+    F -->|"HTTP POST /users"| A["Kratos API<br/>.NET 10 Minimal API"]
+    F -->|"HTTP GET /users e GET /users/:cpf"| A
 
-    A -->|Publish| Q[(RabbitMQ\nqueue: user_queue)]
-    W[Kratos Worker\nGo 1.22] -->|Consume| Q
+    A -->|"Publish"| Q[("RabbitMQ<br/>queue: user_queue")]
+    W["Kratos Worker<br/>Go 1.22"] -->|"Consume"| Q
 
-    W -->|Persist| M[(MongoDB\ndb: kratos_db\ncollection: users)]
+    W -->|"Persist"| M[("MongoDB<br/>db: kratos_db<br/>collection: users")]
     A -->|Read| M
 
-    A -->|Cache read/write| R[(Redis)]
-    W -->|Idempotency key by message id| R
+    A -->|"Cache read/write"| R[("Redis")]
+    W -->|"Idempotency key by message id"| R
 
-    Q -->|DLX route on failure| QE[(user_queue_errors)]
+    Q -->|"DLX route on failure"| QE[("user_queue_errors")]
 ```
 
 ### Fluxo de negocio
