@@ -4,77 +4,72 @@ Plataforma distribuida para cadastro e consulta de usuarios, com processamento a
 
 ## Visao Geral
 
-O `Kratos` e um monorepo com tres componentes principais:
+O projeto e um monorepo com tres aplicacoes:
 
-- `kratos-front`: interface web (React + Vite)
-- `kratos-api`: API HTTP em .NET (ingestao e consulta)
-- `kratos-worker`: processador assincro em Go (consumo de fila e persistencia)
+- `kratos-front`: frontend web (React + Vite)
+- `kratos-api`: API HTTP em .NET (entrada e consultas)
+- `kratos-worker`: processamento assincro em Go (consumo de eventos e persistencia)
 
-A arquitetura usa RabbitMQ para desacoplamento, MongoDB para persistencia e Redis para cache/idempotencia.
+Infraestrutura de suporte:
+
+- RabbitMQ para mensageria
+- MongoDB para persistencia
+- Redis para cache e idempotencia
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
     U["Usuario"] --> F["Kratos Frontend<br/>React + Vite + Nginx"]
-    F -->|"HTTP POST /users"| A["Kratos API<br/>.NET 10 Minimal API"]
-    F -->|"HTTP GET /users e GET /users/:cpf"| A
+    F -->|"POST /users"| A["Kratos API<br/>.NET 10 Minimal API"]
+    F -->|"GET /users e GET /users/:cpf"| A
 
-    A -->|"Publish"| Q[("RabbitMQ<br/>queue: user_queue")]
-    W["Kratos Worker<br/>Go 1.22"] -->|"Consume"| Q
+    A -->|"Publica evento"| Q[("RabbitMQ<br/>user_queue")]
+    Q -->|"Consumo concorrente"| W["Kratos Worker<br/>Go 1.22"]
 
-    W -->|"Persist"| M[("MongoDB<br/>db: kratos_db<br/>collection: users")]
-    A -->|Read| M
+    W -->|"Upsert e invalidacao de cache"| M[("MongoDB<br/>kratos_db.users")]
+    A -->|"Leitura"| M
 
-    A -->|"Cache read/write"| R[("Redis")]
-    W -->|"Idempotency key by message id"| R
+    A -->|"Cache de consulta por CPF"| R[("Redis")]
+    W -->|"Idempotencia por eventId"| R
 
-    Q -->|"DLX route on failure"| QE[("user_queue_errors")]
+    Q -->|"Dead letter"| QE[("user_queue_errors")]
 ```
-
-### Fluxo de negocio
-
-1. Frontend envia `POST /users` para API.
-2. API valida payload e publica evento na fila `user_queue`.
-3. Worker consome mensagens com concorrencia (50 workers), aplica idempotencia no Redis e persiste no MongoDB.
-4. Consultas `GET /users` e `GET /users/{cpf}` sao respondidas pela API; consulta por CPF usa cache Redis.
-5. Mensagens com erro podem ser roteadas para `user_queue_errors` (DLX).
 
 ## Stack Tecnologica
 
 | Camada | Tecnologias |
 |---|---|
 | Frontend | React 19, TypeScript, Vite 8, Tailwind, Nginx |
-| API | .NET 10, Minimal API, AutoMapper, MongoDB.Driver, RabbitMQ.Client, Redis Cache |
-| Worker | Go 1.22, amqp091-go, MongoDB driver, Redis |
-| Mensageria | RabbitMQ (com DLX) |
+| API | .NET 10, Minimal API, AutoMapper, MongoDB.Driver, RabbitMQ.Client, HealthChecks, Serilog |
+| Worker | Go 1.22, amqp091-go, MongoDB Driver, redis/go-redis |
+| Mensageria | RabbitMQ + DLX |
 | Dados | MongoDB |
 | Cache/Idempotencia | Redis |
-| Containers | Docker, Docker Compose |
+| Orquestracao | Docker Compose |
 
 ## Estrutura do Repositorio
 
 ```text
 .
+|-- contracts/
+|   `-- user-created-v1.json
 |-- docker-compose.yml
+|-- docker-compose.debug.yml
 |-- kratos-api/
-|   `-- src/Kratos.Api
+|   `-- src/Kratos.Api/
 |-- kratos-front/
 `-- kratos-worker/
 ```
 
-## Requisitos
+## Execucao Rapida
 
-- Docker 24+
+### Requisitos
+
+- Docker
 - Docker Compose v2+
 
-Opcional (execucao local sem containers):
-
-- .NET SDK 10
-- Go 1.22+
-- Node.js 22+
-
-## Execucao Rapida (Docker)
+### Subir stack principal
 
 ```bash
 docker compose up --build
@@ -83,16 +78,34 @@ docker compose up --build
 Servicos:
 
 - Frontend: [http://localhost:3000](http://localhost:3000)
-- API (apos ajuste de porta): [http://localhost:5007/users](http://localhost:5007/users)
+- API: [http://localhost:5007](http://localhost:5007)
 - RabbitMQ Management: [http://localhost:15672](http://localhost:15672)
 - MongoDB: `localhost:27017`
 - Redis: `localhost:6379`
 
-## Endpoints
+## Observabilidade e Debug
+
+O repositorio inclui `docker-compose.debug.yml` com:
+
+- Seq (`kratos-logs`): [http://localhost:5341](http://localhost:5341)
+- HealthChecks UI (`kratos-monitor`): [http://localhost:5008](http://localhost:5008)
+
+Execucao sugerida para ambiente de debug:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+```
+
+Health endpoints da API:
+
+- `GET /health/live`
+- `GET /health/ready`
+
+## API HTTP
 
 ### `POST /users`
 
-Cria usuario de forma assincrona (publica mensagem na fila).
+Cria um usuario de forma assincrona (publica evento no RabbitMQ).
 
 Exemplo:
 
@@ -102,17 +115,44 @@ curl -X POST http://localhost:5007/users \
   -d '{"cpf":"12345678901","name":"Kratos","email":"kratos@example.com"}'
 ```
 
-Resposta esperada: `202 Accepted`
+Resposta esperada: `202 Accepted`.
 
 ### `GET /users`
 
-Lista usuarios persistidos. Suporta filtro por nome:
+Lista usuarios salvos no MongoDB. Suporta filtro por nome:
 
 - `GET /users?name=joao`
 
 ### `GET /users/{cpf}`
 
-Retorna usuario por CPF (com tentativa de leitura em cache antes do banco).
+Busca um usuario por CPF (com tentativa de leitura em cache Redis antes do banco).
+
+## Evento Publicado
+
+Fila: `user_queue`  
+Versao de contrato no evento: `1.0`
+
+Formato enviado pela API (implementacao atual):
+
+```json
+{
+  "metadata": {
+    "eventId": "uuid",
+    "version": "1.0",
+    "occurredAt": "2026-01-01T00:00:00.0000000Z",
+    "correlationId": null
+  },
+  "payload": {
+    "cpf": "12345678901",
+    "first_name": "Kratos",
+    "email": "kratos@example.com"
+  }
+}
+```
+
+Referencia de schema versionado no repositorio:
+
+- `contracts/user-created-v1.json`
 
 ## Variaveis de Ambiente
 
@@ -120,7 +160,7 @@ Retorna usuario por CPF (com tentativa de leitura em cache antes do banco).
 
 - `MONGO_URL` (default: `mongodb://root:example@localhost:27017`)
 - `REDIS_URL` (default: `localhost:6379`)
-- `RABBIT_URL` (default no codigo: `localhost`)
+- `RABBIT_URL` (default: `amqp://guest:guest@localhost:5672`)
 
 ### Worker
 
@@ -154,16 +194,6 @@ npm install
 npm run dev
 ```
 
-## Qualidade e Operacao
+## Licenca
 
-- Processamento assincrono para reduzir acoplamento entre escrita e persistencia.
-- Idempotencia no worker para evitar duplicidade por reentrega de mensagem.
-- Cache Redis para reduzir latencia nas consultas por CPF.
-- Fila de erro (`user_queue_errors`) para suporte a diagnostico e retentativa.
-
-## Roadmap Sugerido
-
-- Incluir testes automatizados (unitarios e integracao).
-
-## Licença
-Este projeto está sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+Este projeto esta sob a licenca MIT. Veja [LICENSE](LICENSE).
